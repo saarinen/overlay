@@ -1,6 +1,6 @@
 require "overlay/engine"
 require "overlay/configuration"
-require "overlay/git"
+require "overlay/github"
 
 module Overlay
 end

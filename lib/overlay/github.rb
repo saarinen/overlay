@@ -17,7 +17,7 @@ module Overlay
       configure
 
       Overlay.configuration.repositories.each do |repo_config|
-        break unless repo_config.class == GithubRepo
+        next unless repo_config.class == GithubRepo
 
         # Validate repository config
         raise 'Respository config missing user' if (!repo_config[:user] || repo_config[:user].nil?)
