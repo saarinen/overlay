@@ -7,7 +7,8 @@ module Overlay
     :auth,
     :repositories,
     :hostname,
-    :host_port
+    :host_port,
+    :relative_root_url
   ].freeze
 
   class << self
@@ -29,5 +30,5 @@ module Overlay
     end
   end
 
-  GithubRepo = Struct.new(:name, :repo, :branch)
+  GithubRepo = Struct.new(:user, :repo, :branch, :root_path)
 end

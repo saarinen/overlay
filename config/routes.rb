@@ -1,3 +1,3 @@
 Overlay::Engine.routes.draw do
-  get "github/update"
+  post "github/update"
 end

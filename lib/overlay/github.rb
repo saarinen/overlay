@@ -23,86 +23,89 @@ module Overlay
         raise 'Respository config missing user' if (!repo_config[:user] || repo_config[:user].nil?)
         raise 'Respository config missing repo' if (!repo_config[:repo] || repo_config[:repo].nil?)
 
-        branch = repo_config[:branch] || 'master'
+        repo_config[:branch] ||= 'master'
 
-        register_web_hook(repo_config[:user], repo_config[:repo])
+        register_web_hook(repo_config)
 
-        overlay_repo(repo_config[:user], repo_config[:repo], branch)
+        overlay_repo(repo_config)
       end
     end
 
     # Register our listener on the repo
     #
-    def self.register_web_hook user, repo
+    def self.register_web_hook repo_config
       # Make sure our routes are loaded
       Rails.application.reload_routes!
 
       # Build hook url
-      host = Overlay.configuration.hostname || Socket.gethostname
-      port = Overlay.configuration.host_port || Rails::Server.new.options[:Port]
-      uri  = Overlay::Engine.routes.url_for({:controller=>"github_overlays/webhooks", :action=>"update", :host => host, :port => port})
+      host = config.hostname || Socket.gethostname
+      port = config.host_port || Rails::Server.new.options[:Port]
+      path = Overlay::Engine.routes.url_for({:controller=>"overlay/github", :action=>"update", :only_path => true})
+      uri  = ActionDispatch::Http::URL::url_for({:host => host, :port => port, :path => "#{config.relative_root_url}#{path}"})
 
       # Retrieve current web hooks
-      current_hooks = github_repo.hooks.list(user, repo).response.body
+      current_hooks = github_repo.hooks.list(repo_config[:user], repo_config[:repo]).response.body
       if current_hooks.find {|hook| hook.config.url == uri}.nil?
         #register hook
-        github_repo.hooks.create(user, repo, name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
+        github_repo.hooks.create(repo_config[:user], repo_config[:repo], name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
       end
     end
 
-    def self.overlay_repo user, repo, branch
+    def self.overlay_repo repo_config
       # Get our root entries
       #
-      root_entries = github_repo.contents.get(user, repo, '/', ref: branch).response.body
+      root_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], '/', ref: repo_config[:branch]).response.body
 
       # We aren't pulling anything out of root.  Cycle through directories and overlay
       #
       root_entries.each do |entry|
         if entry.type == 'dir'
-          overlay_directory(entry.path, user, repo, branch)
+          overlay_directory(entry.path, repo_config)
         end
       end
     end
 
-    def self.overlay_directory path, user, repo, branch
-      FileUtils.mkdir_p "#{Rails.application.root}/#{path}"
-      directory_entries = github_repo.contents.get(user, repo, path, ref: branch).response.body
+    def self.overlay_directory path, repo_config
+      root_path = repo_config[:root_path].empty? ? "#{Rails.application.root}/#{repo_config[:root_path]}" : "#{Rails.application.root}"
+
+      FileUtils.mkdir_p "#{root_path}/#{path}"
+      directory_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], path, ref: repo_config[:branch]).response.body
 
       directory_entries.each do |entry|
         if entry.type == 'dir'
-          overlay_directory(entry.path, user, repo, branch)
+          overlay_directory(entry.path, repo_config)
         elsif entry.type == 'file'
-          clone_file(entry.path, user, repo, branch)
+          clone_file(entry.path, repo_config)
         end
       end
     end
 
-    def self.clone_file path, user, repo, branch
-      file = github_repo.contents.get(user, repo, path, ref: branch).response.body.content
-      File.open("#{Rails.application.root}/#{path}", "wb") { |f| f.write(Base64.decode64(file)) }
+    def self.clone_file path, repo_config
+      root_path = repo_config[:root_path].empty? ? "#{Rails.application.root}/#{repo_config[:root_path]}" : "#{Rails.application.root}"
+
+      file = github_repo.contents.get(repo_config[:user], repo_config[:repo], path, ref: repo_config[:branch]).response.body.content
+      File.open("#{root_path}/#{path}", "wb") { |f| f.write(Base64.decode64(file)) }
     end
 
     private
 
     def self.github_repo
-      @@github ||= Github::Repos.new
+      @@github ||= ::Github::Repos.new
     end
 
     def self.config
-      @@overlay_config ||= Rails.application.config.github_overlays
+      @@overlay_config ||= Overlay.configuration
     end
 
     # Configure the github api
     def self.configure
-      overlay_config = Overlay.configuration
-
       # Validate required config
-      raise 'Configuration github_overlays.basic_auth not set' if (!overlay_config.auth || overlay_config.auth.nil?)
+      raise 'Configuration github_overlays.basic_auth not set' if (!config.auth || config.auth.nil?)
 
-      Github.configure do |github_config|
-        github_config.endpoint    = overlay_config.endpoint if overlay_config.endpoint
-        github_config.site        = overlay_config.site if overlay_config.site
-        github_config.basic_auth  = overlay_config.auth
+      ::Github.configure do |github_config|
+        github_config.endpoint    = config.endpoint if config.endpoint
+        github_config.site        = config.site if config.site
+        github_config.basic_auth  = config.auth
         github_config.adapter     = :net_http
         github_config.ssl         = {:verify => false}
       end
