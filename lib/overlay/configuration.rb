@@ -30,5 +30,5 @@ module Overlay
     end
   end
 
-  GithubRepo = Struct.new(:user, :repo, :branch, :root_path)
+  GithubRepo = Struct.new(:user, :repo, :branch, :root_source_path, :root_dest_path)
 end

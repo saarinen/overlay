@@ -54,7 +54,10 @@ module Overlay
     def self.overlay_repo repo_config
       # Get our root entries
       #
-      root_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], '/', ref: repo_config[:branch]).response.body
+      root = repo_config[:root_source_path] || '/'
+      overlay_directory root, repo_config and return if root != '/'
+
+      root_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], root, ref: repo_config[:branch]).response.body
 
       # We aren't pulling anything out of root.  Cycle through directories and overlay
       #
@@ -66,9 +69,10 @@ module Overlay
     end
 
     def self.overlay_directory path, repo_config
-      root_path = repo_config[:root_path].empty? ? "#{Rails.application.root}/#{repo_config[:root_path]}" : "#{Rails.application.root}"
+      root_path = repo_config[:root_dest_path].empty? ? "#{Rails.application.root}" : "#{Rails.application.root}/#{repo_config[:root_dest_path]}"
+      dynamic_path = path.partition(repo_config[:root_source_path]).last
 
-      FileUtils.mkdir_p "#{root_path}/#{path}"
+      FileUtils.mkdir_p "#{root_path}/#{dynamic_path}"
       directory_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], path, ref: repo_config[:branch]).response.body
 
       directory_entries.each do |entry|
@@ -81,10 +85,11 @@ module Overlay
     end
 
     def self.clone_file path, repo_config
-      root_path = repo_config[:root_path].empty? ? "#{Rails.application.root}/#{repo_config[:root_path]}" : "#{Rails.application.root}"
+      root_path = repo_config[:root_dest_path].empty? ? "#{Rails.application.root}" : "#{Rails.application.root}/#{repo_config[:root_dest_path]}"
+      dynamic_path = path.partition(repo_config[:root_source_path]).last
 
       file = github_repo.contents.get(repo_config[:user], repo_config[:repo], path, ref: repo_config[:branch]).response.body.content
-      File.open("#{root_path}/#{path}", "wb") { |f| f.write(Base64.decode64(file)) }
+      File.open("#{root_path}/#{dynamic_path}", "wb") { |f| f.write(Base64.decode64(file)) }
     end
 
     private
