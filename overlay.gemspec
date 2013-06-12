@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   s.test_files  = Dir["spec/**/*"]
 
   s.add_dependency "rails"
-  s.add_dependency 'github_api'
+  s.add_dependency 'github_api', "~>0.10"
 
   s.add_development_dependency 'rspec-rails'
 end
