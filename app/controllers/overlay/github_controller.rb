@@ -6,8 +6,8 @@ module Overlay
       Overlay.configuration.repositories.each do |repo_config|
         next unless repo_config.class == GithubRepo
         branch = repo_config[:branch] || 'master'
-        if (params[:repository] && params[:webhook])
-          if (params[:repository][:name] == repo_config[:repo]) && (params[:webhook][:ref] == "refs/heads/#{branch}")
+        if (params[:repository] && params[:ref])
+          if (params[:repository][:name] == repo_config[:repo]) && (params[:ref] == "refs/heads/#{branch}")
             Overlay::Github.process_overlays
           end
         end
