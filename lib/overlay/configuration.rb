@@ -24,6 +24,10 @@ module Overlay
     attr_accessor *VALID_OPTIONS_KEYS
 
     def initialize
+      reset
+    end
+
+    def reset
        @site = 'https://github.com'
        @endpoint = 'https://api.github.com'
        @repositories = Set.new

@@ -8,11 +8,6 @@ module Overlay
     # Cycle through all configured repositories and overlay
     #
     def self.process_overlays
-      # If we aren't running in Rails, bail out.  This may be some
-      # other request such as rake routes loading the environment
-      #
-      return unless defined?(Rails::Server)
-
       # Configure github api
       configure
 
@@ -38,8 +33,8 @@ module Overlay
       Rails.application.reload_routes!
 
       # Build hook url
-      host = config.hostname || Socket.gethostname
-      port = config.host_port || Rails::Server.new.options[:Port]
+      host = config.hostname || ENV['HOST_NAME']
+      port = config.host_port || ENV['HOST_PORT']
       path = Overlay::Engine.routes.url_for({:controller=>"overlay/github", :action=>"update", :only_path => true})
       uri  = ActionDispatch::Http::URL::url_for({:host => host, :port => port, :path => "#{config.relative_root_url}#{path}"})
 
@@ -55,7 +50,13 @@ module Overlay
       # Get our root entries
       #
       root = repo_config[:root_source_path] || '/'
-      overlay_directory root, repo_config and return if root != '/'
+
+      # If we have a root defined, jump right into it
+      #
+      if (root != '/')
+        overlay_directory(root, repo_config)
+        return
+      end
 
       root_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], root, ref: repo_config[:branch]).response.body
 

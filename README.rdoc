@@ -1,3 +1,15 @@
-= Overlay
+# Overlay
+
+Overlay a repository on to an existing Rails application.
+
+## Featrures
+
+## Installation
+
+## Configuration
+
+## Usage
+
+## Examples
 
 This project rocks and uses MIT-LICENSE.
