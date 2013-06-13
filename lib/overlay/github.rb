@@ -33,8 +33,8 @@ module Overlay
       Rails.application.reload_routes!
 
       # Build hook url
-      host = config.hostname || ENV['HOST_NAME']
-      port = config.host_port || ENV['HOST_PORT']
+      host = config.hostname || ENV['HOST_NAME'] || Socket.gethostname
+      port = config.host_port || ENV['HOST_PORT'] || Rails::Server.new.options[:Port]
       path = Overlay::Engine.routes.url_for({:controller=>"overlay/github", :action=>"update", :only_path => true})
       uri  = ActionDispatch::Http::URL::url_for({:host => host, :port => port, :path => "#{config.relative_root_url}#{path}"})
 
