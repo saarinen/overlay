@@ -8,6 +8,10 @@ describe Overlay::Github do
     Overlay.configure do |config|
       config.auth = 'test_user:test_password'
       config.repositories << Overlay::GithubRepo.new('saarinen', 'overlay', 'master', 'spec', 'spec')
+
+      # Configure host port as Rails::Server is not available
+      #
+      config.host_port = 3000
     end
   end
 

@@ -8,6 +8,12 @@ module Overlay
     # Cycle through all configured repositories and overlay
     #
     def self.process_overlays
+      # This can be called in an application initializer which will
+      # load anytime the environment is loaded.  Make sure we are prepared to run
+      # this.
+      #
+      return unless (config.host_port || ENV['HOST_PORT'] || defined? Rails::Server)
+
       # Configure github api
       configure
 
