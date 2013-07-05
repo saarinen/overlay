@@ -1,6 +1,7 @@
 require 'github_api'
 require 'fileutils'
 require 'socket'
+require 'sucker_punch'
 
 module Overlay
   class Github
@@ -28,7 +29,7 @@ module Overlay
 
         register_web_hook(repo_config)
 
-        overlay_repo(repo_config)
+        GithubJob.new.async.perform repo_config
       end
     end
 
@@ -47,7 +48,7 @@ module Overlay
       # Retrieve current web hooks
       current_hooks = github_repo.hooks.list(repo_config[:user], repo_config[:repo]).response.body
       if current_hooks.find {|hook| hook.config.url == uri}.nil?
-        #register hook
+        # register hook
         github_repo.hooks.create(repo_config[:user], repo_config[:repo], name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
       end
     end
@@ -121,6 +122,14 @@ module Overlay
         github_config.adapter     = :net_http
         github_config.ssl         = {:verify => false}
       end
+    end
+  end
+
+  class GithubJob
+    include SuckerPunch::Job
+
+    def perform(repo_config)
+      Github.overlay_repo repo_config
     end
   end
 end

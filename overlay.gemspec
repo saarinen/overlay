@@ -18,6 +18,7 @@ Gem::Specification.new do |s|
 
   s.add_dependency "rails"
   s.add_dependency 'github_api', "~>0.10"
+  s.add_dependency 'sucker_punch', '>=1.0.0.beta2'
 
   s.add_development_dependency 'rspec-rails'
 end
