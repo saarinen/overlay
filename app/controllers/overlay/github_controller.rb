@@ -10,7 +10,7 @@ module Overlay
         branch = repo_config[:branch] || 'master'
         if (params[:repository] && params[:ref])
           if (params[:repository][:name] == repo_config[:repo]) && (params[:ref] == "refs/heads/#{branch}")
-            Overlay::GithubJob.new.async.perform repo_config
+            Overlay::Github.process_overlays
           end
         end
       end
