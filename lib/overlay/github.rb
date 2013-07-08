@@ -129,6 +129,7 @@ module Overlay
     include SuckerPunch::Job
 
     def perform(repo_config)
+      Rails.logger.info "SuckerPunch processing job for #{repo_config[:repo]}"
       Github.overlay_repo repo_config
     end
   end
