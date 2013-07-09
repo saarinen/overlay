@@ -29,7 +29,7 @@ module Overlay
 
         register_web_hook(repo_config)
 
-        GithubJob.new.async.perform repo_config
+        SuckerPunch::Queue[:github_queue].async.perform repo_config
       end
     end
 
@@ -126,7 +126,7 @@ module Overlay
   end
 
   class GithubJob
-    include SuckerPunch::Job
+    include SuckerPunch::Worker
 
     def perform(repo_config)
       Rails.logger.info "SuckerPunch processing job for #{repo_config[:repo]}"

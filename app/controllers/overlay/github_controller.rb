@@ -13,7 +13,7 @@ module Overlay
         if (params[:repository] && params[:ref])
           if (params[:repository][:name] == repo_config[:repo]) && (params[:ref] == "refs/heads/#{branch}")
             logger.info "Processing overlay for repo: #{repo_config[:repo]} and branch: #{repo_config[:branch] || 'master'}"
-            Overlay::Github.process_overlays
+            SuckerPunch::Queue[:github_queue].async.perform repo_config
           end
         end
       end
