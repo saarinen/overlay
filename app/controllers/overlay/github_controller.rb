@@ -12,7 +12,7 @@ module Overlay
         if (params[:repository] && params[:ref])
           if (params[:repository][:name] == repo_config[:repo]) && (params[:ref] == "refs/heads/#{branch}")
             logger.info "Enqueueing GithubJob for repo: #{repo_config[:repo]} and branch: #{repo_config[:branch] || 'master'}"
-            GithubJob.new.async.perform repo_config
+            Overlay::Github.overlay_repo repo_config
           end
         end
       end

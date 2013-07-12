@@ -1,7 +1,6 @@
 require 'github_api'
 require 'fileutils'
 require 'socket'
-require 'sucker_punch'
 
 module Overlay
   class Github
@@ -29,7 +28,7 @@ module Overlay
 
         register_web_hook(repo_config)
 
-        GithubJob.new.async.perform repo_config
+        overlay_repo repo_config
       end
     end
 
@@ -54,24 +53,25 @@ module Overlay
     end
 
     def self.overlay_repo repo_config
-      # Get our root entries
-      #
-      root = repo_config[:root_source_path] || '/'
+      Thread.new do
+        # Get our root entries
+        #
+        root = repo_config[:root_source_path] || '/'
 
-      # If we have a root defined, jump right into it
-      #
-      if (root != '/')
-        overlay_directory(root, repo_config)
-        return
-      end
+        # If we have a root defined, jump right into it
+        #
+        if (root != '/')
+          overlay_directory(root, repo_config)
+        else
+          root_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], root, ref: repo_config[:branch]).response.body
 
-      root_entries = github_repo.contents.get(repo_config[:user], repo_config[:repo], root, ref: repo_config[:branch]).response.body
-
-      # We aren't pulling anything out of root.  Cycle through directories and overlay
-      #
-      root_entries.each do |entry|
-        if entry.type == 'dir'
-          overlay_directory(entry.path, repo_config)
+          # We aren't pulling anything out of root.  Cycle through directories and overlay
+          #
+          root_entries.each do |entry|
+            if entry.type == 'dir'
+              overlay_directory(entry.path, repo_config)
+            end
+          end
         end
       end
     end
@@ -122,19 +122,6 @@ module Overlay
         github_config.adapter     = :net_http
         github_config.ssl         = {:verify => false}
       end
-    end
-  end
-
-  class GithubJob
-    include SuckerPunch::Job
-
-    def perform(repo_config)
-      Rails.logger.info "SuckerPunch processing job for #{repo_config[:repo]}"
-
-      # Configure github api
-      Github.configure
-
-      Github.overlay_repo repo_config
     end
   end
 end

@@ -81,7 +81,8 @@ describe Overlay::Github do
     it "should jump directly to overlay_directory if root set" do
       repo_config = Overlay::GithubRepo.new('saarinen', 'overlay', 'master', 'spec', 'spec')
       Overlay::Github.should_receive(:overlay_directory).once.with('spec', repo_config).and_return
-      Overlay::Github.overlay_repo repo_config
+      overlay_thread = Overlay::Github.overlay_repo repo_config
+      overlay_thread.join
     end
 
     it "should ignore any files in repo root"
