@@ -6,7 +6,7 @@ module Overlay
     :user,
     :auth,
     :repositories,
-    :hostname,
+    :host_name,
     :host_port,
     :relative_root_url
   ].freeze
