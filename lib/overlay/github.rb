@@ -13,7 +13,7 @@ module Overlay
       # load anytime the environment is loaded.  Make sure we are prepared to run
       # this.
       #
-      return unless (config.host_port || ENV['HOST_PORT'] || defined? Rails::Server)
+      return unless (config.host_port || ENV['SERVER_HOST_PORT'] || defined? Rails::Server)
 
       # Configure github api
       configure
