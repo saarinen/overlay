@@ -54,6 +54,7 @@ module Overlay
 
     def self.overlay_repo repo_config
       Thread.new do
+        Rails.logger.info "Start processing repo with config #{repo_config.inspect}"
         # Get our root entries
         #
         root = repo_config[:root_source_path] || '/'
@@ -73,6 +74,7 @@ module Overlay
             end
           end
         end
+        Rails.logger.info "Finished processing repo with config #{repo_config.inspect}"
       end
     end
 
