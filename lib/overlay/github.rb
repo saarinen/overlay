@@ -75,6 +75,7 @@ module Overlay
           end
         end
         Rails.logger.info "Finished processing repo with config #{repo_config.inspect}"
+        Overlay.configuration.post_hook
       end
     end
 

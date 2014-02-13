@@ -1,4 +1,7 @@
 module Overlay
+
+  class PostHookExists < StandardError; end
+
   VALID_OPTIONS_KEYS = [
     :site,
     :endpoint,
@@ -32,6 +35,17 @@ module Overlay
        @endpoint = 'https://api.github.com'
        @repositories = Set.new
     end
+
+    def after_overlay(&hook)
+      raise ArgumentError, "No block given" unless block_given?
+      raise Overlay::PostHookExists, "Overlay post hook already set" unless @post_hook.nil?
+      @post_hook = hook 
+    end
+
+    def post_hook
+      @post_hook.call if !@post_hook.nil?
+    end
+
   end
 
   GithubRepo = Struct.new(:user, :repo, :branch, :root_source_path, :root_dest_path)
