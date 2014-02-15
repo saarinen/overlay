@@ -6,7 +6,7 @@ module Overlay
       ActionController::Base.class_eval do
         before_filter do
           Overlay.configuration.repositories.each do |repo_config|
-            prepend_view_path repo_config[:root_dest_path]
+            prepend_view_path repo_config.root_dest_path
           end
         end
       end

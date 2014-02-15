@@ -1,10 +1,6 @@
+
 module Overlay
   VALID_OPTIONS_KEYS = [
-    :site,
-    :endpoint,
-    :repo,
-    :user,
-    :auth,
     :repositories,
     :host_name,
     :host_port,
@@ -28,11 +24,42 @@ module Overlay
     end
 
     def reset
-       @site = 'https://github.com'
-       @endpoint = 'https://api.github.com'
-       @repositories = Set.new
+      @repositories = Set.new
     end
   end
 
-  GithubRepo = Struct.new(:user, :repo, :branch, :root_source_path, :root_dest_path)
+  # Configure a github repository.  Required parameters:
+  # :endpoint,
+  # :site,
+  # :org,
+  # :repo,
+  # :auth,
+  # :root_source_path,
+  # :root_dest_path
+
+  # Optional parameters:
+  # :branch,
+  # :use_publisher
+  # :registration_address
+  # :redis_server
+  # :redis_port
+  class GithubRepo
+    attr_accessor :endpoint, :site, :org, :repo, :auth, :root_source_path, :root_dest_path
+    attr_accessor :use_publisher, :redis_server, :redis_port, :registration_address, :branch
+
+    # Internal repo api hook
+    attr_accessor :github_repo
+
+    def initialize(endpoint, site, org, repo, auth, root_source_path, root_dest_path)
+      @endpoint         = endpoint
+      @site             = site
+      @org              = org
+      @repo             = repo
+      @auth             = auth
+      @root_source_path = root_source_path
+      @root_dest_path   = root_dest_path
+      @branch           = 'master'
+      @use_publisher    = false
+    end
+  end
 end

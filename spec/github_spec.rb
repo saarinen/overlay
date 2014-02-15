@@ -1,104 +1,157 @@
 require 'spec_helper'
 
 describe Overlay::Github do
-  before :each do
-    # Configure the overlay
-    Overlay.configuration.reset if Overlay.configuration
-
-    Overlay.configure do |config|
-      config.auth = 'test_user:test_password'
-      config.repositories << Overlay::GithubRepo.new('saarinen', 'overlay', 'master', 'spec', 'spec')
-
-      # Configure host port as Rails::Server is not available
-      #
-      config.host_port = 3000
-    end
-  end
-
   describe "process overlays" do
-    it "should configure the github_api" do
-      Overlay::Github.stub(:register_web_hook).and_return
-      Overlay::Github.stub(:overlay_repo).and_return
+    before :each do
+      # Configure the overlay
+      Overlay.configuration.reset if Overlay.configuration
 
-      Overlay::Github.should_receive(:configure).once
-      Overlay::Github.process_overlays
+      Overlay.configure do |config|
+        config.repositories << Overlay::GithubRepo.new(
+            'https://api.github.com',
+            'http://github.com',
+            'test_org',
+            'test_repo',
+            'test_user:test_pass',
+            'spec',
+            'spec'
+          )
+
+        # Configure host port as Rails::Server is not available
+        #
+        config.host_port = 3000
+      end
+    end
+
+    it "should configure the github_api" do
+      Overlay::Github.instance.stub(:register_web_hook).and_return
+      Overlay::Github.instance.stub(:overlay_repo).and_return
+
+      Overlay::Github.instance.should_receive(:github_repo).once
+      Overlay::Github.instance.process_overlays
     end
 
     it "should verify the user and repo config" do
-      Overlay::Github.stub(:register_web_hook).and_return
-      Overlay::Github.stub(:overlay_repo).and_return
+      Overlay::Github.instance.stub(:register_web_hook).and_return
+      Overlay::Github.instance.stub(:overlay_repo).and_return
 
-      Overlay.configuration.repositories << Overlay::GithubRepo.new(nil, nil, 'master', 'spec', 'spec')
+      Overlay.configuration.repositories.first.org = nil
 
-      expect{Overlay::Github.process_overlays}.to raise_error("Respository config missing user")
+      expect{Overlay::Github.instance.process_overlays}.to raise_error("Respository config missing org")
 
-      Overlay.configuration.reset
+      Overlay.configuration.repositories.first.org = 'test'
+      Overlay.configuration.repositories.first.repo = nil
 
-      Overlay.configuration.repositories << Overlay::GithubRepo.new("test", nil, 'master', 'spec', 'spec')
-
-      expect{Overlay::Github.process_overlays}.to raise_error("Respository config missing repo")
+      expect{Overlay::Github.instance.process_overlays}.to raise_error("Respository config missing repo")
     end
 
     it "should call to add a web_hook" do
-      Overlay::Github.stub(:overlay_repo).and_return
+      Overlay::Github.instance.stub(:overlay_repo).and_return
 
-      Overlay::Github.should_receive(:register_web_hook).once.and_return
-      Overlay::Github.process_overlays
+      Overlay::Github.instance.should_receive(:register_web_hook).once.and_return
+      Overlay::Github.instance.process_overlays
     end
 
     it "should overlay the repo" do
-      Overlay::Github.stub(:register_web_hook).and_return
+      Overlay::Github.instance.stub(:register_web_hook).and_return
 
-      Overlay::Github.should_receive(:overlay_repo).once.and_return
-      Overlay::Github.process_overlays
+      Overlay::Github.instance.should_receive(:overlay_repo).once.and_return
+      Overlay::Github.instance.process_overlays
     end
   end
 
   describe "configure github_api" do
-    it "should call github api configure" do
-      ::Github.should_receive(:configure).once
-      Overlay::Github.configure
-    end
+    before :each do
+      # Configure the overlay
+      Overlay.configuration.reset if Overlay.configuration
 
-    it "should set a custom site address" do
-      Overlay.configuration.site = "http://www.example.com"
-      Overlay::Github.configure
-      expect(::Github::Repos.new.site).to eq("http://www.example.com")
+      Overlay.configure do |config|
+        config.repositories << Overlay::GithubRepo.new(
+            'https://api.github.com',
+            'http://github.com',
+            'test_org',
+            'test_repo',
+            'test_user:test_pass',
+            'spec',
+            'spec'
+          )
+
+        # Configure host port as Rails::Server is not available
+        #
+        config.host_port = 3000
+      end
     end
 
     it "should verify basic auth" do
-      Overlay.configuration.auth = nil
-      expect{Overlay::Github.configure}.to raise_error("Configuration github_overlays.basic_auth not set")
-    end
+      Overlay.configuration.reset
 
-    it "should set auth" do
-      Overlay::Github.configure
-      expect(::Github::Repos.new.basic_auth).to eq('test_user:test_password')
+      Overlay.configuration.repositories << Overlay::GithubRepo.new(
+            'https://api.github.com',
+            'http://github.com',
+            'test',
+            'test',
+            nil,
+            'spec',
+            'spec'
+          )
+
+      expect{Overlay::Github.instance.process_overlays}.to raise_error("Respository config auth not set")
     end
   end
 
-  describe "overlay_repo" do
-    it "should jump directly to overlay_directory if root set" do
-      repo_config = Overlay::GithubRepo.new('saarinen', 'overlay', 'master', 'spec', 'spec')
-      Overlay::Github.should_receive(:overlay_directory).once.with('spec', repo_config).and_return
-      overlay_thread = Overlay::Github.overlay_repo repo_config
-      overlay_thread.join
+  describe 'overlay_publisher integration' do
+    before :each do
+      # Configure the overlay
+      Overlay.configuration.reset if Overlay.configuration
+      repo_config = Overlay::GithubRepo.new(
+            'https://api.github.com',
+            'http://github.com',
+            'test_org',
+            'test_repo',
+            'test_user:test_pass',
+            'spec',
+            'spec'
+          )
+      repo_config.use_publisher         = true
+      repo_config.redis_server          = 'localhost'
+      repo_config.redis_port            = 6379
+      repo_config.registration_address  = 'http://localhost:4567'
+
+      Overlay.configure do |config|
+        config.repositories << repo_config
+        config.host_port = 3000
+      end
+
+      stub_request(:post, /localhost:4567/).
+        with(headers: {'Accept'=>'*/*', 'User-Agent'=>'Ruby'}).
+        to_return(status: 200, body: "{\"publish_key\": \"overlay_publisher_test_org_test_repo\"}", headers: {})
     end
 
-    it "should ignore any files in repo root"
+    it 'should validate registration_address' do
+      Overlay.configuration.repositories.first.registration_address = nil
+      expect{Overlay::Github.instance.process_overlays}.to raise_error("Publisher registration_address not set")
+    end
 
-    it "should process all directories in repo root"
-  end
+    it 'should validate redis server' do
+      Overlay.configuration.repositories.first.redis_server = nil
+      expect{Overlay::Github.instance.process_overlays}.to raise_error("Publisher redis_server not set")
+    end
 
-  describe "overlay_directory" do
-    it "should set path correctly based on root"
-    it "should create path for directory"
-    it "should call clone_files for all files in directory"
-    it "should call overlay_directory for all directories"
-  end
+    it 'should validate redis port' do
+      Overlay.configuration.repositories.first.redis_port = nil
+      expect{Overlay::Github.instance.process_overlays}.to raise_error("Publisher redis_port not set")
+    end
 
-  describe "clone_file" do
-    it "should create a file for the cloned file"
-    it "should corrctly set the file path"
+    it 'should call publisher_subscribe if publisher enabled' do
+      Overlay::Github.instance.should_receive(:overlay_repo).once.and_return
+      Overlay::Github.instance.should_receive(:publisher_subscribe).once.and_return
+      Overlay::Github.instance.process_overlays
+    end
+
+    it 'should register with the OverlayPublisher' do
+      Overlay::Github.instance.should_receive(:overlay_repo).once.and_return
+      Overlay::Github.instance.should_receive(:subscribe_to_channel).once.with('overlay_publisher_test_org_test_repo',Overlay.configuration.repositories.first).and_return
+      Overlay::Github.instance.process_overlays
+    end
   end
 end
