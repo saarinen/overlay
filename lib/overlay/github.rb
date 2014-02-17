@@ -33,11 +33,6 @@ module Overlay
       Overlay.configuration.repositories.each do |repo_config|
         next unless repo_config.class == GithubRepo
 
-        repo_config.branch ||= 'master'
-
-        # Add github API hook to repo
-        repo_config.github_repo = github_repo(repo_config)
-
         # Register this server's endpoint as a webhook or subscribe
         # to a redis pub/sub
         if repo_config.use_publisher
@@ -46,7 +41,9 @@ module Overlay
           register_web_hook(repo_config)
         end
 
-        overlay_repo repo_config
+        # Now that all the set-up is done, for a process
+        # to overlay the repo.
+        fork_it(:overlay_repo, repo_config)
       end
     end
 
@@ -91,6 +88,9 @@ module Overlay
           end
         end
       end
+
+      # Call post hook code
+      repo_config.post_hook
     end
 
     private
@@ -108,13 +108,13 @@ module Overlay
       path = Overlay::Engine.routes.url_for({:controller=>"overlay/github", :action=>"update", :only_path => true})
       uri  = ActionDispatch::Http::URL::url_for({:host => host, :port => port, :path => "#{config.relative_root_url}#{path}"})
 
-      github_repo = repo_config.github_repo
+      github_api = repo_config.github_api
 
       # Retrieve current web hooks
-      current_hooks = github_repo.hooks.list(repo_config.org, repo_config.repo).response.body
+      current_hooks = github_api.hooks.list(repo_config.org, repo_config.repo).response.body
       if current_hooks.find {|hook| hook.config.url == uri}.nil?
         # register hook
-        github_repo.hooks.create(repo_config.org, repo_config.repo, name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
+        github_api.hooks.create(repo_config.org, repo_config.repo, name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
       end
     end
 
@@ -124,12 +124,10 @@ module Overlay
       return unless @subscribed_configs.find_index(repo_config).nil?
 
       # Validate our settings
-      raise "Publisher registration_address not set"  if ( repo_config.registration_address.nil? || repo_config.registration_address.empty? )
-      raise "Publisher redis_server not set"          if ( repo_config.redis_server.nil? || repo_config.redis_server.empty? )
-      raise "Publisher redis_port not set"            if ( repo_config.redis_port.nil? )
+      repo_config.validate
 
       # Register this repo with the manager
-      uri = URI.parse(repo_config.registration_address)
+      uri = URI.parse(repo_config.registration_server)
       http = Net::HTTP.new(uri.host, uri.port)
       request = Net::HTTP::Post.new("/register")
       request.add_field('Content-Type', 'application/json')
@@ -149,7 +147,7 @@ module Overlay
       Rails.logger.info "Overlay subscribing to redis channel: #{publish_key}"
 
       # Subscribe to redis channel
-      subscribe_to_channel(publish_key, repo_config)
+      fork_it(:subscribe_to_channel, publish_key, repo_config)
 
       @subscribed_configs << repo_config
     end
@@ -158,34 +156,30 @@ module Overlay
     # process can be long_running so we fork.  We should only be running
     # this method in initialization of the application.
     def overlay_repo repo_config
-      overlay = Process.fork do
-        Rails.logger.info "Overlay started processing repo with config #{repo_config.inspect}"
+      Rails.logger.info "Overlay started processing repo with config #{repo_config.inspect}"
 
-        # Get our root entries
-        root = repo_config.root_source_path || '/'
+      # Get our root entries
+      root = repo_config.root_source_path || '/'
 
-        # If we have a root defined, jump right into it
-        if root != '/'
-          overlay_directory(root, repo_config)
-        else
-          root_entries = repo_config.github_repo.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
+      # If we have a root defined, jump right into it
+      if root != '/'
+        overlay_directory(root, repo_config)
+      else
+        root_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
 
-          # We aren't pulling anything out of root.  Cycle through directories and overlay
-          root_entries.each do |entry|
-            if entry.type == 'dir'
-              overlay_directory(entry.path, repo_config)
-            end
+        # We aren't pulling anything out of root.  Cycle through directories and overlay
+        root_entries.each do |entry|
+          if entry.type == 'dir'
+            overlay_directory(entry.path, repo_config)
           end
         end
-        Rails.logger.info "Overlay finished processing repo with config #{repo_config.inspect}"
-        Process.exit
       end
-      Process.detach(overlay)
+      Rails.logger.info "Overlay finished processing repo with config #{repo_config.inspect}"
     end
 
     def overlay_directory path, repo_config
       FileUtils.mkdir_p destination_path(path, repo_config)
-      directory_entries = repo_config.github_repo.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body
+      directory_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body
 
       directory_entries.each do |entry|
         if entry.type == 'dir'
@@ -197,34 +191,31 @@ module Overlay
     end
 
     def clone_file path, repo_config
-      file = repo_config.github_repo.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body.content
+      file = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body.content
       File.open(destination_path(path, repo_config), "wb") { |f| f.write(Base64.decode64(file)) }
       Rails.logger.info "Overlay cloned file: #{path}"
     end
 
     # Fork a new process and subscribe to a redis channel
     def subscribe_to_channel key, repo_config
-      subscribe = Process.fork do
-        redis = Redis.new(:timeout => 30, :host => repo_config.redis_server, :port => repo_config.redis_port)
+      redis = Redis.new(:timeout => 30, :host => repo_config.redis_server, :port => repo_config.redis_port)
 
-        # This key is going to receive a publish event
-        # for any changes to the target repo.  We need to verify
-        # that the payload references our branch and our watch direstory
-        redis.subscribe(key) do |on|
-          on.message do |channel, msg|
-            Rails.logger.info "Overlay received publish event for channel #{publish_key} with payload: #{msg}"
-            hook = JSON.parse(msg)
+      # This key is going to receive a publish event
+      # for any changes to the target repo.  We need to verify
+      # that the payload references our branch and our watch direstory
+      redis.subscribe(key) do |on|
+        on.message do |channel, msg|
+          Rails.logger.info "Overlay received publish event for channel #{publish_key} with payload: #{msg}"
+          hook = JSON.parse(msg)
 
-            # Make sure this is the branch we are watching
-            if (hook['ref'] == "refs/heads/#{repo_config.branch}")
-              Rails.logger.info "Overlay enqueueing Github hook processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
-              process_hook(hook, repo_config)
-              Rails.logger.info "Overlay done processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
-            end
+          # Make sure this is the branch we are watching
+          if (hook['ref'] == "refs/heads/#{repo_config.branch}")
+            Rails.logger.info "Overlay enqueueing Github hook processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
+            process_hook(hook, repo_config)
+            Rails.logger.info "Overlay done processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
           end
         end
       end
-      Process.detach(subscribe)
     end
 
     def my_file? file_path, repo_config
@@ -239,29 +230,20 @@ module Overlay
     def destination_path file_path, repo_config
       raise "The file #{file_path} isn't handled by this repo with root path: #{repo_config.root_source_path}" unless my_file?(file_path, repo_config)
       dynamic_path = file_path.partition(repo_config.root_source_path).last
-      return "#{root_path(repo_config)}/#{dynamic_path}"
+      return "#{root_path(repo_config)}#{dynamic_path}"
     end
 
     def config
       @overlay_config ||= Overlay.configuration
     end
 
-    # Retrieve API hook to repo
-    def github_repo(repo_config)
-      # Validate repository config
-      raise 'Respository config missing org' if (!repo_config.org || repo_config.org.nil?)
-      raise 'Respository config missing repo' if (!repo_config.repo || repo_config.repo.nil?)
-      raise 'Respository config auth not set' if (!repo_config.auth || repo_config.auth.nil?)
-
-      ::Github.configure do |github_config|
-        github_config.endpoint    = repo_config.endpoint
-        github_config.site        = repo_config.site
-        github_config.basic_auth  = repo_config.auth
-        github_config.adapter     = :net_http
-        github_config.ssl         = {:verify => false}
+    # Process the passed in function symbol and args in a fork
+    def fork_it method, *args
+      pid = Process.fork do
+        send(method, *args)
+        Process.exit
       end
-
-      ::Github::Repos.new
+      Process.detach(pid)
     end
   end
 end

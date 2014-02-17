@@ -7,8 +7,6 @@ module Overlay
 
       Overlay.configure do |config|
         config.repositories << Overlay::GithubRepo.new(
-            'https://api.github.com',
-            'http://github.com',
             'test',
             'test',
             'test_user:test_pass',
@@ -20,7 +18,7 @@ module Overlay
 
     describe "POST 'update'" do
       it "returns http success" do
-        Overlay::Github.instance.should_receive(:process_hook).once
+        expect(Overlay::Github.instance).to receive(:process_hook).once.and_return
         post 'update', {:use_route => :overlay, :ref => "refs/heads/master", :repository => {:name => 'test'}}
       end
     end
