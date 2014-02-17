@@ -1,15 +1,49 @@
 # Overlay
 
-Overlay a repository on to an existing Rails application.
+Rails engine that allows for overlaying external templates onto an existing Rails application.  Overlayed directories are prepended to the view path to allow ive overwriting of deployed templates.
 
-## Featrures
+## Features
+
+### GithubRepo Features
+
+* Overlay seperate directories in a single repo to specific places in your Rails application.
+* Update files in realtime utilizing self registering post commit webhooks on github.
+* Run code on file update via the GithubRepo #after_process_hook block.
+* Utilize an OverlayPublisher application and a redis server to centralize hook management and publish changes to a fleet of servers.
 
 ## Installation
 
+Add the gem to your Gemfile:
+
+    gem 'overlay'
+
 ## Configuration
+
+Add an initializer to your Rails `config/initializers` directory.  This file should configure your repositories and launch the initial overlay.  Here is a sample initializer:
+
+    require 'overlay'
+
+    Overlay.configure do |config|
+      config.relative_root_url  = Rails.application.config.relative_url_root
+
+      github_repo = Overlay::GithubRepo.new(
+          'repo_org',
+          'repo_name',
+          'repo_user_user:repo_password',
+          'source_root_directory',
+          'source_destination_path'
+        )
+      config.repositories << repo_config
+    end
+
+    # Overlay files after rails is initialized
+    #
+    Rails.application.config.after_initialize do
+      Overlay::Github.instance.process_overlays
+    end
 
 ## Usage
 
-## Examples
+Once Overlay is configured, on startup, a process will be forked to run the initial pull-down of files from the repository.  Overlay will update specific files on change in the repo through use of Github webhooks.
 
 This project rocks and uses MIT-LICENSE.
