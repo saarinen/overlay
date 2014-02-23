@@ -52,4 +52,6 @@ Usage
 
 Once Overlay is configured, on startup, a process will be forked to run the initial pull-down of files from the repository.  Overlay will update specific files on change in the repo through use of Github webhooks.
 
+If you are using unicorn, you need to be sure to provide host_name and host_port if using self-subscription for Github webhooks.
+
 This project rocks and uses MIT-LICENSE.

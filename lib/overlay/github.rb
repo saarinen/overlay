@@ -24,12 +24,6 @@ module Overlay
     # This function should be called only at initialization time as it causes a
     # full overlay to be run
     def process_overlays
-      # This can be called in an application initializer which will
-      # load anytime the environment is loaded.  Make sure we are prepared to run
-      # this.
-      #
-      return unless (config.host_port || ENV['SERVER_HOST_PORT'] || defined? Rails::Server)
-
       Overlay.configuration.repositories.each do |repo_config|
         next unless repo_config.class == GithubRepo
 
