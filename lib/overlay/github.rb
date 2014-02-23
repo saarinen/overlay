@@ -173,7 +173,7 @@ module Overlay
     end
 
     def overlay_directory path, repo_config
-      FileUtils.mkdir_p destination_path(path, repo_config)
+      FileUtils.mkdir_p(destination_path(path, repo_config)) unless File.exists?(destination_path(path, repo_config))
       directory_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body
 
       directory_entries.each do |entry|
