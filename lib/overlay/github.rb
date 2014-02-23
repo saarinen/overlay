@@ -3,6 +3,7 @@ require 'fileutils'
 require 'socket'
 require 'singleton'
 require 'redis'
+require 'net/http'
 
 # The github class is responsible for managing overlaying
 # directories in a Github repo on the current application.
@@ -121,9 +122,9 @@ module Overlay
       repo_config.validate
 
       # Register this repo with the manager
-      uri = URI.parse(repo_config.registration_server)
-      http = Net::HTTP.new(uri.host, uri.port)
-      request = Net::HTTP::Post.new("/register")
+      uri = ::URI.parse(repo_config.registration_server)
+      http = ::Net::HTTP.new(uri.host, uri.port)
+      request = ::Net::HTTP::Post.new("/register")
       request.add_field('Content-Type', 'application/json')
       request.body = {
         'organization' => repo_config.org,
