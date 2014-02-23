@@ -57,14 +57,19 @@ module Overlay
     REQUIRED_PARAMS            = [:org, :repo, :auth, :root_source_path]
     REQUIRED_PUBLISHER_PARAMS  = [:redis_server, :redis_port, :registration_server]
 
-    def initialize(org, repo, auth, root_source_path, root_dest_path)
-      @org              = org
-      @repo             = repo
-      @auth             = auth
-      @root_source_path = root_source_path
-      @root_dest_path   = root_dest_path
-      @branch           = 'master'
-      @use_publisher    = false
+    def initialize(options={})
+      @org                  = options[:org]
+      @repo                 = options[:repo]
+      @auth                 = options[:auth]
+      @root_source_path     = options[:root_source_path]
+      @root_dest_path       = options[:root_dest_path]
+      @redis_server         = options[:redis_server]
+      @redis_port           = options[:redis_port]
+      @registration_server  = options[:registration_server]
+      @endpoint             = options[:endpoint]
+      @site                 = options[:site]
+      @branch               = options[:branch] || 'master'
+      @use_publisher        = options[:use_publisher] || false
 
       # Quick sanity check
       validate

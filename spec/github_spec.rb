@@ -4,13 +4,13 @@ require 'socket'
 describe Overlay::Github do
 
   let(:repo_config) do
-    Overlay::GithubRepo.new(
-          'test_org',
-          'test_repo',
-          'test_user:test_pass',
-          'spec',
-          'spec'
-        )
+    Overlay::GithubRepo.new({
+      org: 'test_org',
+      repo: 'test_repo',
+      auth: 'test_user:test_pass',
+      root_source_path: 'spec',
+      root_dest_path: 'spec'
+    })
   end
 
   describe "Register Github webhook" do
@@ -111,13 +111,13 @@ describe Overlay::Github do
 
   describe 'process webhook payload' do
     let(:repo_config) do
-      Overlay::GithubRepo.new(
-            'test_org',
-            'test_repo',
-            'test_user:test_pass',
-            'lib',
-            'lib'
-          )
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: 'test_repo',
+        auth: 'test_user:test_pass',
+        root_source_path: 'lib',
+        root_dest_path: 'lib'
+      })
     end
 
     let(:payload) do

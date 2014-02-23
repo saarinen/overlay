@@ -4,52 +4,107 @@ require 'spec_helper'
 describe Overlay::GithubRepo do
 
   let(:repo_config) do
-    Overlay::GithubRepo.new('org', 'repo', 'auth', 'test', '/')
+    Overlay::GithubRepo.new({
+      org: 'test_org',
+      repo: 'test_repo',
+      auth: 'test_user:test_pass',
+      root_source_path: 'test',
+      root_dest_path: '/'
+    })
   end
 
   it "should allow basic creation" do
     expect {
-      test = Overlay::GithubRepo.new('org', 'repo', 'auth', 'test', '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: 'test_repo',
+        auth: 'test_user:test_pass',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to_not raise_error
   end
 
   it 'should throw error for missing org' do
     expect {
-      test = Overlay::GithubRepo.new('', 'repo', 'auth', 'test', '/')
+      Overlay::GithubRepo.new({
+        org: '',
+        repo: 'test_repo',
+        auth: 'test_user:test_pass',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: org")
 
     expect {
-      test = Overlay::GithubRepo.new(nil, 'repo', 'auth', 'test', '/')
+      Overlay::GithubRepo.new({        repo: 'test_repo',
+        auth: 'test_user:test_pass',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: org")
   end
 
   it 'should throw error for missing repo' do
     expect {
-      test = Overlay::GithubRepo.new('org', '', 'auth', 'test', '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: '',
+        auth: 'test_user:test_pass',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: repo")
 
     expect {
-      test = Overlay::GithubRepo.new('org', nil, 'auth', 'test', '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        auth: 'test_user:test_pass',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: repo")
   end
 
   it 'should throw error for missing auth' do
     expect {
-      test = Overlay::GithubRepo.new('org', 'repo', '', 'test', '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: 'test_repo',
+        auth: '',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: auth")
 
     expect {
-      test = Overlay::GithubRepo.new('org', 'repo', nil, 'test', '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: 'test_repo',
+        root_source_path: 'test',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: auth")
   end
 
   it 'should throw error for missing source root_source_path' do
     expect {
-      test = Overlay::GithubRepo.new('org', 'repo', 'auth', '', '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: 'test_repo',
+        auth: 'test_user:test_pass',
+        root_source_path: '',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: root_source_path")
 
     expect {
-      test = Overlay::GithubRepo.new('org', 'repo', 'auth', nil, '/')
+      Overlay::GithubRepo.new({
+        org: 'test_org',
+        repo: 'test_repo',
+        auth: 'test_user:test_pass',
+        root_dest_path: '/'
+      })
     }.to raise_error(Overlay::RequiredParameterError, "Overlay GithubRepo missing required paramater: root_source_path")
   end
 
@@ -94,9 +149,10 @@ describe Overlay::GithubRepo do
     it 'should initialize the API with correct settings' do
       github_api = repo_config.github_api
 
-      expect(github_api.current_options[:org]) .to eq('org')
-      expect(github_api.current_options[:repo]) .to eq('repo')
-      expect(github_api.current_options[:login]) .to eq('auth')
+      expect(github_api.current_options[:org]) .to eq('test_org')
+      expect(github_api.current_options[:repo]) .to eq('test_repo')
+      expect(github_api.current_options[:login]) .to eq('test_user')
+      expect(github_api.current_options[:password]) .to eq('test_pass')
     end
 
     it 'should reinitialize api when endpoint is changed' do
