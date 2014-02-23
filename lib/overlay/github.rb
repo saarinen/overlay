@@ -121,7 +121,7 @@ module Overlay
     # Retrieve Subscribe to a OverlayPublisher redis key
     # Fork a process that subscribes to the redis key and processes updates.
     def publisher_subscribe repo_config
-      return unless @subscribed_configs.find_index(repo_config).nil?
+      return unless @subscribed_configs.index(repo_config).nil?
 
       # Validate our settings
       repo_config.validate
