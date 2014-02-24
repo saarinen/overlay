@@ -148,16 +148,13 @@ describe Overlay::Github do
                 \"username\":\"saarinen\"
               },
               \"added\":[
-
-              ],
-              \"added\":[
-                \"lib/test/test.rb\"
+                \"lib/test/test_added.rb\"
               ],
               \"removed\":[
-                \"lib/test/test.rb\"
+                \"lib/test/test_removed.rb\"
               ],
               \"modified\":[
-                \"lib/test/test.rb\"
+                \"lib/test/test_modified.rb\"
               ]
             }
           ],
@@ -178,13 +175,13 @@ describe Overlay::Github do
               \"username\":\"saarinen\"
             },
             \"added\":[
-              \"lib/test/test.rb\"
+              \"lib/test/test_added.rb\"
             ],
             \"removed\":[
-              \"lib/test/test.rb\"
+              \"lib/test/test_removed.rb\"
             ],
             \"modified\":[
-              \"lib/test/test.rb\"
+              \"lib/test/test_modified.rb\"
             ]
           },
           \"repository\":{
@@ -229,24 +226,25 @@ describe Overlay::Github do
 
     it 'should remove a deleted file' do
       allow(Overlay::Github.instance).to receive(:clone_file).and_return
-      allow(FileUtils).to receive(:mkdir_p).with("#{Rails.application.root}/lib/test")
-      expect(File).to receive(:delete).with("#{Rails.application.root}/lib/test/test.rb").and_return
+      allow(FileUtils).to receive(:mkdir_p).and_return
+      expect(File).to receive(:delete).with("#{Rails.application.root}/lib/test/test_removed.rb").and_return
 
       Overlay::Github.instance.process_hook(payload, repo_config)
     end
 
     it 'should clone added or modified files' do
-      allow(FileUtils).to receive(:mkdir_p).with("#{Rails.application.root}/lib/test")
-      allow(File).to receive(:delete).with("#{Rails.application.root}/lib/test/test.rb").and_return
-      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test.rb", repo_config).exactly(:twice).and_return
+      allow(FileUtils).to receive(:mkdir_p).and_return
+      allow(File).to receive(:delete).and_return
+      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test_added.rb", repo_config).and_return
+      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test_modified.rb", repo_config).and_return
 
       Overlay::Github.instance.process_hook(payload, repo_config)
     end
 
     it 'should call post_hook after hook is processed' do
-      allow(FileUtils).to receive(:mkdir_p).with("#{Rails.application.root}/lib/test")
-      allow(File).to receive(:delete).with("#{Rails.application.root}/lib/test/test.rb").and_return
-      allow(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test.rb", repo_config).and_return
+      allow(FileUtils).to receive(:mkdir_p).and_return
+      allow(File).to receive(:delete).and_return
+      allow(Overlay::Github.instance).to receive(:clone_file).and_return
 
       hook_ran = false
 
@@ -257,6 +255,42 @@ describe Overlay::Github do
       Overlay::Github.instance.process_hook(payload, repo_config)
 
       expect(hook_ran).to eq(true)
+    end
+
+    it 'should process hook with null added descriptors' do
+      allow(FileUtils).to receive(:mkdir_p).and_return
+      allow(File).to receive(:delete).and_return
+      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+
+      # Remove added file
+      payload_modified = payload
+      payload_modified['commits'].first['added'] = nil
+
+      expect { Overlay::Github.instance.process_hook(payload_modified, repo_config) }.to_not raise_error
+    end
+
+    it 'should process hook with null modified descriptors' do
+      allow(FileUtils).to receive(:mkdir_p).and_return
+      allow(File).to receive(:delete).and_return
+      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+
+      # Remove modified file
+      payload_modified = payload
+      payload_modified['commits'].first['modified'] = nil
+
+      expect { Overlay::Github.instance.process_hook(payload_modified, repo_config) }.to_not raise_error
+    end
+
+    it 'should process hook with null removed descriptors' do
+      allow(FileUtils).to receive(:mkdir_p).and_return
+      allow(File).to receive(:delete).and_return
+      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+
+      # Remove removed file
+      payload_modified = payload
+      payload_modified['commits'].first['removed'] = nil
+
+      expect { Overlay::Github.instance.process_hook(payload_modified, repo_config) }.to_not raise_error
     end
   end
 end

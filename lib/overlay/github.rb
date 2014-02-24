@@ -53,33 +53,39 @@ module Overlay
 
       commits.each do |commit|
         # There will be three entries in each commit with file paths: added, removed, and modified.
-        added_files = commit['added']
-        added_files.each do |file|
-          # Do we care?
-          if my_file?(file, repo_config)
-            Rails.logger.info "Overlay found added file in hook: #{file}"
+        unless commit['added'].nil?
+          added_files = commit['added']
+          added_files.each do |file|
+            # Do we care?
+            if my_file?(file, repo_config)
+              Rails.logger.info "Overlay found added file in hook: #{file}"
 
-            # Make sure that the directory is in place
-            FileUtils.mkdir_p(destination_path(File.dirname(file), repo_config))
-            clone_file(file, repo_config)
+              # Make sure that the directory is in place
+              FileUtils.mkdir_p(destination_path(File.dirname(file), repo_config))
+              clone_file(file, repo_config)
+            end
           end
         end
 
-        modified_files = commit['added']
-        modified_files.each do |file|
-          # Do we care?
-          if my_file?(file, repo_config)
-            Rails.logger.info "Overlay found modified file in hook: #{file}"
-            clone_file(file, repo_config)
+        unless commit['modified'].nil?
+          modified_files = commit['modified']
+          modified_files.each do |file|
+            # Do we care?
+            if my_file?(file, repo_config)
+              Rails.logger.info "Overlay found modified file in hook: #{file}"
+              clone_file(file, repo_config)
+            end
           end
         end
 
-        removed_files = commit['added']
-        removed_files.each do |file|
-          # Do we care?
-          if my_file?(file, repo_config)
-            Rails.logger.info "Overlay found deleted file in hook: #{file}"
-            File.delete(destination_path(file, repo_config))
+        unless commit['removed'].nil?
+          removed_files = commit['removed']
+          removed_files.each do |file|
+            # Do we care?
+            if my_file?(file, repo_config)
+              Rails.logger.info "Overlay found deleted file in hook: #{file}"
+              File.delete(destination_path(file, repo_config))
+            end
           end
         end
       end
