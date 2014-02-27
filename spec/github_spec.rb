@@ -68,6 +68,18 @@ describe Overlay::Github do
     end
   end
 
+  describe 'initial overlay_repo' do
+    it 'should retry overlay_repo until completion' do
+      @times_called = 0
+      allow(Overlay::Github.instance).to receive(:sleep).and_return
+      expect(Overlay::Github.instance).to receive(:overlay_directory).exactly(5).times.and_return do
+        @times_called += 1
+        raise StandardError unless @times_called == 5
+      end
+      Overlay::Github.instance.send(:overlay_repo, repo_config)
+    end
+  end
+
   describe 'subscribe to a redis publisher' do
     before :each do
       # Configure the overlay
@@ -80,7 +92,7 @@ describe Overlay::Github do
 
       config = repo_config
       config.use_publisher        = true
-      config.redis_server         = 'localhost'
+      config.redis_server         = 'unreachable'
       config.redis_port           = 6734
       config.registration_server  = "http://www.test.com"
 
@@ -106,6 +118,19 @@ describe Overlay::Github do
         to_return(status: 200, body: "{\"publish_key\": \"test_key\"}", headers: {})
 
       Overlay::Github.instance.process_overlays
+    end
+
+    it 'should retry on error' do
+      allow(Overlay::Github.instance).to receive(:sleep).and_return
+      @times_called = 0
+      redis = double("Redis")
+      Redis.stub(:new).and_return(redis)
+      redis.stub(:subscribe).and_return do
+        @times_called += 1
+        raise StandardError unless @times_called == 5
+      end
+      expect(redis).to receive(:subscribe).exactly(5).times
+      Overlay::Github.instance.send(:subscribe_to_channel, "test", Overlay.configuration.repositories.first)
     end
   end
 

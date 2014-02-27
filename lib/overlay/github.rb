@@ -155,26 +155,35 @@ module Overlay
 
     # Overlay all the files specifiec by the repo_config.  This
     # process can be long_running so we fork.  We should only be running
-    # this method in initialization of the application.
+    # this method in initialization of the application or on explicit call.
+    # This method must succeed to completion to guarantee we have all the files
+    # we need so we will continue to retyr until we are complete
     def overlay_repo repo_config
       Rails.logger.info "Overlay started processing repo with config #{repo_config.inspect}"
 
       # Get our root entries
       root = repo_config.root_source_path || '/'
 
-      # If we have a root defined, jump right into it
-      if root != '/'
-        overlay_directory(root, repo_config)
-      else
-        root_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
+      begin
+        # If we have a root defined, jump right into it
+        if root != '/'
+          overlay_directory(root, repo_config)
+        else
+          root_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
 
-        # We aren't pulling anything out of root.  Cycle through directories and overlay
-        root_entries.each do |entry|
-          if entry.type == 'dir'
-            overlay_directory(entry.path, repo_config)
+          # We aren't pulling anything out of root.  Cycle through directories and overlay
+          root_entries.each do |entry|
+            if entry.type == 'dir'
+              overlay_directory(entry.path, repo_config)
+            end
           end
         end
+      rescue => e
+        Rails.logger.error "Overlay encountered an error during overlay_repo and is retrying: #{e.message}"
+        sleep 5
+        retry
       end
+
       Rails.logger.info "Overlay finished processing repo with config #{repo_config.inspect}"
     end
 
@@ -199,23 +208,31 @@ module Overlay
 
     # Fork a new process and subscribe to a redis channel
     def subscribe_to_channel key, repo_config
-      redis = Redis.new(:timeout => 30, :host => repo_config.redis_server, :port => repo_config.redis_port)
+      redis = Redis.new(:host => repo_config.redis_server, :port => repo_config.redis_port)
 
       # This key is going to receive a publish event
       # for any changes to the target repo.  We need to verify
-      # that the payload references our branch and our watch direstory
-      redis.subscribe(key) do |on|
-        on.message do |channel, msg|
-          Rails.logger.info "Overlay received publish event for channel #{key} with payload: #{msg}"
-          hook = JSON.parse(msg)
+      # that the payload references our branch and our watch direstory.
+      # The subscribe call is persistent.
+      begin
+        redis.subscribe(key) do |on|
+          on.message do |channel, msg|
+            Rails.logger.info "Overlay received publish event for channel #{key} with payload: #{msg}"
+            hook = JSON.parse(msg)
 
-          # Make sure this is the branch we are watching
-          if (hook['ref'] == "refs/heads/#{repo_config.branch}")
-            Rails.logger.info "Overlay enqueueing Github hook processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
-            process_hook(hook, repo_config)
-            Rails.logger.info "Overlay done processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
+            # Make sure this is the branch we are watching
+            if (hook['ref'] == "refs/heads/#{repo_config.branch}")
+              Rails.logger.info "Overlay enqueueing Github hook processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
+              process_hook(hook, repo_config)
+              Rails.logger.info "Overlay done processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
+            end
           end
         end
+        Rails.logger.error "Overlay subscribe closed for unknown reason."
+      rescue => e
+        Rails.logger.error "Overlay encountered an error during subscribe_to_channel on key #{key} and is retrying: #{e.message}"
+        sleep 5
+        retry
       end
     end
 
