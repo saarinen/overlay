@@ -206,7 +206,7 @@ module Overlay
       # that the payload references our branch and our watch direstory
       redis.subscribe(key) do |on|
         on.message do |channel, msg|
-          Rails.logger.info "Overlay received publish event for channel #{publish_key} with payload: #{msg}"
+          Rails.logger.info "Overlay received publish event for channel #{key} with payload: #{msg}"
           hook = JSON.parse(msg)
 
           # Make sure this is the branch we are watching
