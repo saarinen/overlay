@@ -1,7 +1,8 @@
 Overlay
 ====================
 
-Rails engine that allows for overlaying external templates onto an existing Rails application.  Overlayed directories are prepended to the view path to allow overwriting of deployed templates.
+Rails engine that allows for overlaying external files onto an existing Rails application.  Overlayed directories are prepended to the view path to allow overwriting of deployed templates. A post overlay hook
+is provided to allow for cache invalidation and processing to run after a file is updated.
 
 Features
 ====================
@@ -31,14 +32,13 @@ Add an initializer to your Rails `config/initializers` directory.  This file sho
     Overlay.configure do |config|
       config.relative_root_url  = Rails.application.config.relative_url_root
 
-      github_repo = Overlay::GithubRepo.new(
-          'repo_org',
-          'repo_name',
-          'repo_user_user:repo_password',
-          'source_root_directory',
-          'source_destination_path'
-        )
-      config.repositories << repo_config
+      config.repositories << Overlay::GithubRepo.new({
+                      org: '<repo organization name>',
+                      repo: '<repo name>',
+                      auth: '<repo user>:<user password>',
+                      root_source_path: '<repository source directory>',
+                      root_dest_path: '<overlay destination directory>'
+                    })
     end
 
     # Overlay files after rails is initialized
@@ -47,10 +47,17 @@ Add an initializer to your Rails `config/initializers` directory.  This file sho
       Overlay::Github.instance.process_overlays
     end
 
+Overlay also supports an external OverLay publisher installation for use with larger fleets.  Per repo, this functionality can be anabled by adding the following config to your repository configuration:
+
+    repo_config.use_publisher         = true
+    repo_config.redis_server          = '<redis server>'
+    repo_config.redis_port            = <redis server port>
+    repo_config.registration_server   = 'http://<OverlayPublisher server and port>'
+
 Usage
 ====================
 
-Once Overlay is configured, on startup, a process will be forked to run the initial pull-down of files from the repository.  Overlay will update specific files on change in the repo through use of Github webhooks.
+Once Overlay is configured, a call to Overlay::Github.instance.process_overlays wil fork a process to run the initial pull-down of files from the repository.  Overlay will update specific files on change in the repo through use of Github webhooks.
 
 If you are using unicorn, you need to be sure to provide host_name and host_port if using self-subscription for Github webhooks.
 
