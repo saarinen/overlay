@@ -19,6 +19,7 @@ module Overlay
 
     def initialize
       @subscribed_configs = []
+      @master_pid         = $$
     end
 
     # Cycle through all configured repositories and overlay
@@ -256,12 +257,20 @@ module Overlay
     end
 
     # Process the passed in function symbol and args in a fork
+    # Add at exit hook to insure we kill our process.  Insure we only do this
+    # from the master process
     def fork_it method, *args
       pid = Process.fork do
-        send(method, *args)
-        Process.exit
+        begin
+          send(method, *args)
+        ensure
+          Process.exit
+        end
       end
       Process.detach(pid)
+      at_exit do
+        Process.kill(:QUIT, pid) if @master_pid == $$
+      end
     end
   end
 end
