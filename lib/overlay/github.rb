@@ -261,6 +261,7 @@ module Overlay
     # from the master process
     def fork_it method, *args
       pid = Process.fork do
+        Signal.trap('QUIT') { puts "Exiting #{method} process."; Process.exit }
         begin
           send(method, *args)
         ensure
@@ -269,7 +270,7 @@ module Overlay
       end
       Process.detach(pid)
       at_exit do
-        Process.kill(:QUIT, pid) if @master_pid == $$
+        Process.kill('QUIT', pid) if @master_pid == $$
       end
     end
   end
