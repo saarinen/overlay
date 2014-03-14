@@ -217,6 +217,9 @@ module Overlay
       # The subscribe call is persistent.
       begin
         redis.subscribe(key) do |on|
+          on.subscribe do |channel, subscriptions|
+            Rails.logger.info "'#{channel}' channel subscription established for key '#{key}'. Subscriptions: #{subscriptions}"
+          end
           on.message do |channel, msg|
             Rails.logger.info "Overlay received publish event for channel #{key} with payload: #{msg}"
             hook = JSON.parse(msg)
