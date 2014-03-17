@@ -32,7 +32,6 @@ describe Overlay::Github do
       allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config).and_return
 
       stub_request(:get, /api.github.com/).
-        with(:headers => {'Accept'=>'application/vnd.github.v3+json,application/vnd.github.beta+json;q=0.5,application/json;q=0.1', 'Accept-Charset'=>'utf-8', 'Accept-Encoding'=>'gzip;q=1.0,deflate;q=0.6,identity;q=0.3', 'User-Agent'=>'Github Ruby Gem 0.11.2'}).
         to_return(:status => 200, :body => '[]', :headers => {})
 
       expect(repo_config.github_api.hooks).to receive(:create).with(
@@ -53,7 +52,6 @@ describe Overlay::Github do
       allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config).and_return
 
       stub_request(:get, /www.test.com/).
-        with(:headers => {'Accept'=>'application/vnd.github.v3+json,application/vnd.github.beta+json;q=0.5,application/json;q=0.1', 'Accept-Charset'=>'utf-8', 'Accept-Encoding'=>'gzip;q=1.0,deflate;q=0.6,identity;q=0.3', 'User-Agent'=>'Github Ruby Gem 0.11.2'}).
         to_return(:status => 200, :body => '[]', :headers => {})
 
       expect(repo_config.github_api.hooks).to receive(:create).with(
@@ -114,7 +112,6 @@ describe Overlay::Github do
       expect(Overlay::Github.instance).to receive(:fork_it).with(:subscribe_to_channel, "test_key", config).and_return
 
       stub_request(:post, /www.test.com/).
-        with(headers: {'Accept'=>'*/*', 'User-Agent'=>'Ruby'}).
         to_return(status: 200, body: "{\"publish_key\": \"test_key\"}", headers: {})
 
       Overlay::Github.instance.process_overlays

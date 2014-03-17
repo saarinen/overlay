@@ -4,6 +4,7 @@ require 'socket'
 require 'singleton'
 require 'redis'
 require 'net/http'
+require 'timeout'
 
 # The github class is responsible for managing overlaying
 # directories in a Github repo on the current application.
@@ -112,11 +113,18 @@ module Overlay
 
       github_api = repo_config.github_api
 
-      # Retrieve current web hooks
-      current_hooks = github_api.hooks.list(repo_config.org, repo_config.repo).response.body
-      if current_hooks.find {|hook| hook.config.url == uri}.nil?
-        # register hook
-        github_api.hooks.create(repo_config.org, repo_config.repo, name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
+      begin
+        timeout(30) {
+          # Retrieve current web hooks
+          current_hooks = github_api.hooks.list(repo_config.org, repo_config.repo).response.body
+          if current_hooks.find {|hook| hook.config.url == uri}.nil?
+            # register hook
+            github_api.hooks.create(repo_config.org, repo_config.repo, name: 'web', active: true, config: {:url => uri, :content_type => 'json'})
+          end
+        }
+      rescue Timeout::Error
+        Rails.logger.info "Overlay timed out while hegistering web hook"
+        raise "Overlay timed out while hegistering web hook"
       end
     end
 
@@ -128,20 +136,27 @@ module Overlay
       # Validate our settings
       repo_config.validate
 
-      # Register this repo with the manager
-      uri = ::URI.parse(repo_config.registration_server)
-      http = ::Net::HTTP.new(uri.host, uri.port)
-      request = ::Net::HTTP::Post.new("/register")
-      request.add_field('Content-Type', 'application/json')
-      request.body = {
-        'organization' => repo_config.org,
-        'repo' => repo_config.repo,
-        'auth' => repo_config.auth,
-        'endpoint' => repo_config.endpoint,
-        'site' => repo_config.site
-      }.to_json
+      begin
+        response = timeout(30) {
+          # Register this repo with the manager
+          uri = ::URI.parse(repo_config.registration_server)
+          http = ::Net::HTTP.new(uri.host, uri.port)
+          request = ::Net::HTTP::Post.new("/register")
+          request.add_field('Content-Type', 'application/json')
+          request.body = {
+            'organization' => repo_config.org,
+            'repo' => repo_config.repo,
+            'auth' => repo_config.auth,
+            'endpoint' => repo_config.endpoint,
+            'site' => repo_config.site
+          }.to_json
 
-      response = http.request(request)
+          http.request(request)
+        }
+      rescue Timeout::Error
+        Rails.logger.info "Overlay timed out while registering with publisher: #{repo_config.registration_server}"
+        raise "Overlay timed out while registering with #{repo_config.registration_server}"
+      end
 
       # Retrieve publish key
       publish_key = JSON.parse(response.read_body)['publish_key']
@@ -170,7 +185,9 @@ module Overlay
         if root != '/'
           overlay_directory(root, repo_config)
         else
-          root_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
+          root_entries = timeout(30) {
+             rrepo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
+          }
 
           # We aren't pulling anything out of root.  Cycle through directories and overlay
           root_entries.each do |entry|
@@ -179,6 +196,10 @@ module Overlay
             end
           end
         end
+      rescue Timeout::Error
+        Rails.logger.info "Overlay timed out while retrieving root directories and is retrying"
+        sleep 5
+        retry
       rescue => e
         Rails.logger.error "Overlay encountered an error during overlay_repo and is retrying: #{e.message}"
         sleep 5
@@ -190,7 +211,15 @@ module Overlay
 
     def overlay_directory path, repo_config
       FileUtils.mkdir_p(destination_path(path, repo_config)) unless File.exists?(destination_path(path, repo_config))
-      directory_entries = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body
+
+      begin
+        directory_entries = timeout(30) {
+          repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body
+        }
+      rescue Timeout::Error
+        Rails.logger.info "Overlay timed out during overlay_directory for path: #{path}"
+        raise "Overlay timed out during overlay_directory for path: #{path}"
+      end
 
       directory_entries.each do |entry|
         if entry.type == 'dir'
@@ -202,7 +231,15 @@ module Overlay
     end
 
     def clone_file path, repo_config
-      file = repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body.content
+      begin
+        file = timeout(30) {
+          repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body.content
+        }
+      rescue Timeout::Error
+        Rails.logger.error "Overlay timed out while cloning file: #{path}"
+        raise "Overlay timed out while cloning file: #{path}"
+      end
+
       File.open(destination_path(path, repo_config), "wb") { |f| f.write(Base64.decode64(file)) }
       Rails.logger.info "Overlay cloned file: #{path}"
     end
