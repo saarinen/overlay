@@ -19,8 +19,9 @@ module Overlay
     attr_accessor :subscribed_configs
 
     def initialize
-      @subscribed_configs = []
-      @master_pid         = $$
+      @subscribed_configs   = []
+      @master_pid           = $$
+      @current_subscribers  = {}
     end
 
     # Cycle through all configured repositories and overlay
@@ -38,7 +39,7 @@ module Overlay
           register_web_hook(repo_config)
         end
 
-        # Now that all the set-up is done, for a process
+        # Now that all the set-up is done, fork a process
         # to overlay the repo.
         fork_it(:overlay_repo, repo_config)
       end
@@ -131,6 +132,7 @@ module Overlay
     # Retrieve Subscribe to a OverlayPublisher redis key
     # Fork a process that subscribes to the redis key and processes updates.
     def publisher_subscribe repo_config
+      # Is this specific configuration already subscribed?
       return unless @subscribed_configs.index(repo_config).nil?
 
       # Validate our settings
@@ -161,12 +163,16 @@ module Overlay
       # Retrieve publish key
       publish_key = JSON.parse(response.read_body)['publish_key']
 
+      # If we have a subscriber running for the same key, return
+      return if @current_subscribers.has_key? publish_key
+
       Rails.logger.info "Overlay subscribing to redis channel: #{publish_key}"
 
       # Subscribe to redis channel
-      fork_it(:subscribe_to_channel, publish_key, repo_config)
+      pid = fork_it(:subscribe_to_channel, publish_key, repo_config)
 
       @subscribed_configs << repo_config
+      @current_subscribers[publish_key] = pid
     end
 
     # Overlay all the files specifiec by the repo_config.  This
@@ -175,18 +181,18 @@ module Overlay
     # This method must succeed to completion to guarantee we have all the files
     # we need so we will continue to retyr until we are complete
     def overlay_repo repo_config
-      Rails.logger.info "Overlay started processing repo with config #{repo_config.inspect}"
-
       # Get our root entries
       root = repo_config.root_source_path || '/'
 
       begin
+        Rails.logger.info "Overlay started processing repo with config #{repo_config.inspect}"
+
         # If we have a root defined, jump right into it
         if root != '/'
           overlay_directory(root, repo_config)
         else
           root_entries = timeout(30) {
-             rrepo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
+             repo_config.github_api.contents.get(repo_config.org, repo_config.repo, root, ref: repo_config.branch).response.body
           }
 
           # We aren't pulling anything out of root.  Cycle through directories and overlay
@@ -210,9 +216,11 @@ module Overlay
     end
 
     def overlay_directory path, repo_config
+      Rails.logger.info "Overlay processing directory with path: #{path}"
       FileUtils.mkdir_p(destination_path(path, repo_config)) unless File.exists?(destination_path(path, repo_config))
 
       begin
+        Rails.logger.info "Overlay retrieving directory contents for path: #{path}"
         directory_entries = timeout(30) {
           repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body
         }
@@ -231,6 +239,7 @@ module Overlay
     end
 
     def clone_file path, repo_config
+      Rails.logger.info "Overlay cloning file with path: #{path}"
       begin
         file = timeout(30) {
           repo_config.github_api.contents.get(repo_config.org, repo_config.repo, path, ref: repo_config.branch).response.body.content
@@ -246,6 +255,7 @@ module Overlay
 
     # Fork a new process and subscribe to a redis channel
     def subscribe_to_channel key, repo_config
+      Rails.logger.info "Overlay establishing connection to Redis server: #{repo_config.redis_server} on port: #{repo_config.redis_port}"
       redis = Redis.new(:host => repo_config.redis_server, :port => repo_config.redis_port)
 
       # This key is going to receive a publish event
@@ -253,6 +263,7 @@ module Overlay
       # that the payload references our branch and our watch direstory.
       # The subscribe call is persistent.
       begin
+        Rails.logger.info "Overlay subscribing to key: #{key}"
         redis.subscribe(key) do |on|
           on.subscribe do |channel, subscriptions|
             Rails.logger.info "'#{channel}' channel subscription established for key '#{key}'. Subscriptions: #{subscriptions}"
@@ -261,11 +272,15 @@ module Overlay
             Rails.logger.info "Overlay received publish event for channel #{key} with payload: #{msg}"
             hook = JSON.parse(msg)
 
-            # Make sure this is the branch we are watching
-            if (hook['ref'] == "refs/heads/#{repo_config.branch}")
-              Rails.logger.info "Overlay enqueueing Github hook processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
-              process_hook(hook, repo_config)
-              Rails.logger.info "Overlay done processing job for repo: #{repo_config.repo} and branch: #{repo_config.branch}"
+            # We may be receiving hooks for several configured roots.  Since we should only have one subscriber servicing
+            # a repo, we need to see if we can handle this hook.
+            Overlay.configuration.repositories.each do |configured_repo|
+              next unless configured_repo.class == GithubRepo
+              if (hook['ref'] == "refs/heads/#{configured_repo.branch}")
+                Rails.logger.info "Overlay enqueueing Github hook processing job for repo: #{configured_repo.repo} and branch: #{configured_repo.branch}"
+                process_hook(hook, configured_repo)
+                Rails.logger.info "Overlay done processing job for repo: #{configured_repo.repo} and branch: #{configured_repo.branch}"
+              end
             end
           end
         end
@@ -312,6 +327,7 @@ module Overlay
       at_exit do
         Process.kill('QUIT', pid) if @master_pid == $$
       end
+      return pid
     end
   end
 end
