@@ -273,7 +273,8 @@ module Overlay
             hook = JSON.parse(msg)
 
             # We may be receiving hooks for several configured roots.  Since we should only have one subscriber servicing
-            # a repo, we need to see if we can handle this hook.
+            # a repo, we need to see if we can handle this hook.  The incoming hook is already keyed to repo and org so we
+            # just need to check branch.
             Overlay.configuration.repositories.each do |configured_repo|
               next unless configured_repo.class == GithubRepo
               if (hook['ref'] == "refs/heads/#{configured_repo.branch}")
