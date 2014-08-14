@@ -119,8 +119,7 @@ module Overlay
 
     # Retrieve API hook to repo
     def initialize_api
-      ::Github.reset!
-      ::Github.configure do |github_config|
+      @github_api = ::Github::Repos.new do |github_config|
         github_config.endpoint    = @endpoint if @endpoint
         github_config.site        = @site if @site
         github_config.basic_auth  = @auth
@@ -129,8 +128,6 @@ module Overlay
         github_config.adapter     = :net_http
         github_config.ssl         = {:verify => false}
       end
-
-      @github_api = ::Github::Repos.new
     end
 
   end

@@ -29,7 +29,7 @@ describe Overlay::Github do
 
     it 'should register a webhook with github' do
       config = Overlay.configuration.repositories.first
-      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config).and_return
+      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config)
 
       stub_request(:get, /api.github.com/).
         to_return(:status => 200, :body => '[]', :headers => {})
@@ -40,7 +40,7 @@ describe Overlay::Github do
         name: 'web',
         active: true,
         config: {:url => "http://#{Socket.gethostname}:3000/overlay/github/update", :content_type => 'json'}
-        ).and_return
+        ) {}
 
       Overlay::Github.instance.process_overlays
     end
@@ -49,7 +49,7 @@ describe Overlay::Github do
       config = Overlay.configuration.repositories.first
       config.endpoint = "https://www.test.com"
 
-      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config).and_return
+      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config) {}
 
       stub_request(:get, /www.test.com/).
         to_return(:status => 200, :body => '[]', :headers => {})
@@ -60,7 +60,7 @@ describe Overlay::Github do
         name: 'web',
         active: true,
         config: {:url => "http://#{Socket.gethostname}:3000/overlay/github/update", :content_type => 'json'}
-        ).and_return
+        )
 
       Overlay::Github.instance.process_overlays
     end
@@ -69,8 +69,8 @@ describe Overlay::Github do
   describe 'initial overlay_repo' do
     it 'should retry overlay_repo until completion' do
       @times_called = 0
-      allow(Overlay::Github.instance).to receive(:sleep).and_return
-      expect(Overlay::Github.instance).to receive(:overlay_directory).exactly(5).times.and_return do
+      allow(Overlay::Github.instance).to receive(:sleep)
+      expect(Overlay::Github.instance).to receive(:overlay_directory).exactly(5).times do
         @times_called += 1
         raise StandardError unless @times_called == 5
       end
@@ -99,17 +99,17 @@ describe Overlay::Github do
 
     it 'should call publisher_subscribe' do
       config = Overlay.configuration.repositories.first
-      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config).and_return
+      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config)
 
-      expect(Overlay::Github.instance).to receive(:publisher_subscribe).with(config).and_return
+      expect(Overlay::Github.instance).to receive(:publisher_subscribe).with(config)
 
       Overlay::Github.instance.process_overlays
     end
 
     it 'should send a registration request' do
       config = Overlay.configuration.repositories.first
-      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config).and_return
-      expect(Overlay::Github.instance).to receive(:fork_it).with(:subscribe_to_channel, "test_key", config).and_return
+      allow(Overlay::Github.instance).to receive(:fork_it).with(:overlay_repo, config)
+      expect(Overlay::Github.instance).to receive(:fork_it).with(:subscribe_to_channel, "test_key", config)
 
       stub_request(:post, /www.test.com/).
         to_return(status: 200, body: "{\"publish_key\": \"test_key\"}", headers: {})
@@ -118,11 +118,11 @@ describe Overlay::Github do
     end
 
     it 'should retry on error' do
-      allow(Overlay::Github.instance).to receive(:sleep).and_return
+      allow(Overlay::Github.instance).to receive(:sleep)
       @times_called = 0
       redis = double("Redis")
       Redis.stub(:new).and_return(redis)
-      redis.stub(:subscribe).and_return do
+      redis.stub(:subscribe) do
         @times_called += 1
         raise StandardError unless @times_called == 5
       end
@@ -239,34 +239,34 @@ describe Overlay::Github do
     end
 
     it 'should make a directory for a new file' do
-      allow(Overlay::Github.instance).to receive(:clone_file).and_return
-      allow(File).to receive(:delete).and_return
+      allow(Overlay::Github.instance).to receive(:clone_file)
+      allow(File).to receive(:delete)
       expect(FileUtils).to receive(:mkdir_p).with("#{Rails.application.root}/lib/test")
 
       Overlay::Github.instance.process_hook(payload, repo_config)
     end
 
     it 'should remove a deleted file' do
-      allow(Overlay::Github.instance).to receive(:clone_file).and_return
-      allow(FileUtils).to receive(:mkdir_p).and_return
-      expect(File).to receive(:delete).with("#{Rails.application.root}/lib/test/test_removed.rb").and_return
+      allow(Overlay::Github.instance).to receive(:clone_file)
+      allow(FileUtils).to receive(:mkdir_p)
+      expect(File).to receive(:delete).with("#{Rails.application.root}/lib/test/test_removed.rb")
 
       Overlay::Github.instance.process_hook(payload, repo_config)
     end
 
     it 'should clone added or modified files' do
-      allow(FileUtils).to receive(:mkdir_p).and_return
-      allow(File).to receive(:delete).and_return
-      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test_added.rb", repo_config).and_return
-      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test_modified.rb", repo_config).and_return
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:delete)
+      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test_added.rb", repo_config)
+      expect(Overlay::Github.instance).to receive(:clone_file).with("lib/test/test_modified.rb", repo_config)
 
       Overlay::Github.instance.process_hook(payload, repo_config)
     end
 
     it 'should call post_hook after hook is processed' do
-      allow(FileUtils).to receive(:mkdir_p).and_return
-      allow(File).to receive(:delete).and_return
-      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:delete)
+      allow(Overlay::Github.instance).to receive(:clone_file)
 
       hook_ran = false
 
@@ -280,9 +280,9 @@ describe Overlay::Github do
     end
 
     it 'should process hook with null added descriptors' do
-      allow(FileUtils).to receive(:mkdir_p).and_return
-      allow(File).to receive(:delete).and_return
-      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:delete)
+      allow(Overlay::Github.instance).to receive(:clone_file)
 
       # Remove added file
       payload_modified = payload
@@ -292,9 +292,9 @@ describe Overlay::Github do
     end
 
     it 'should process hook with null modified descriptors' do
-      allow(FileUtils).to receive(:mkdir_p).and_return
-      allow(File).to receive(:delete).and_return
-      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:delete)
+      allow(Overlay::Github.instance).to receive(:clone_file)
 
       # Remove modified file
       payload_modified = payload
@@ -304,9 +304,9 @@ describe Overlay::Github do
     end
 
     it 'should process hook with null removed descriptors' do
-      allow(FileUtils).to receive(:mkdir_p).and_return
-      allow(File).to receive(:delete).and_return
-      allow(Overlay::Github.instance).to receive(:clone_file).and_return
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:delete)
+      allow(Overlay::Github.instance).to receive(:clone_file)
 
       # Remove removed file
       payload_modified = payload

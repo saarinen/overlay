@@ -2,6 +2,7 @@ require 'spec_helper'
 
 module Overlay
   describe GithubController do
+    include RSpec::Rails::ControllerExampleGroup
     before :each do
       Overlay.configuration.reset if Overlay.configuration
 
@@ -18,7 +19,7 @@ module Overlay
 
     describe "POST 'update'" do
       it "returns http success" do
-        expect(Overlay::Github.instance).to receive(:process_hook).once.and_return
+        expect(Overlay::Github.instance).to receive(:process_hook).once {true}
         post 'update', {:use_route => :overlay, :ref => "refs/heads/master", :repository => {:name => 'test_repo'}}
       end
     end

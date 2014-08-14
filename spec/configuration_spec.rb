@@ -151,8 +151,7 @@ describe Overlay::GithubRepo do
 
       expect(github_api.current_options[:org]) .to eq('test_org')
       expect(github_api.current_options[:repo]) .to eq('test_repo')
-      expect(github_api.current_options[:login]) .to eq('test_user')
-      expect(github_api.current_options[:password]) .to eq('test_pass')
+      expect(github_api.current_options[:basic_auth]) .to eq('test_user:test_pass')
     end
 
     it 'should reinitialize api when endpoint is changed' do
